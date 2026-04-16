@@ -72,12 +72,6 @@ export default function LeadFormModal({ isOpen, onClose }: LeadFormModalProps) {
           ? crypto.randomUUID()
           : `lead_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-      // Dispara o evento Lead no Pixel do browser (visível no Meta Pixel Helper).
-      // Silencioso se o ad-blocker bloquear ou o pixel não estiver carregado.
-      if (typeof window !== "undefined" && typeof window.fbq === "function") {
-        window.fbq("track", "Lead", {}, { eventID: event_id });
-      }
-
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,6 +81,15 @@ export default function LeadFormModal({ isOpen, onClose }: LeadFormModalProps) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Erro ao cadastrar");
       }
+
+      // IMPORTANTE: só dispara o Lead DEPOIS que o servidor confirmou que
+      // o lead foi salvo na base (Supabase). Evita Lead fantasma caso o
+      // servidor falhe ou a validação retroativa barre o insert.
+      // Silencioso se ad-blocker bloquear ou fbq não estiver carregado.
+      if (typeof window !== "undefined" && typeof window.fbq === "function") {
+        window.fbq("track", "Lead", {}, { eventID: event_id });
+      }
+
       setStatus("success");
       setTimeout(() => {
         window.location.href = "https://chat.whatsapp.com/DfzeafadOra4uczlKwQz4I";
