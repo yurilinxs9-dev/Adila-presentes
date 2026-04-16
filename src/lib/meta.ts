@@ -37,6 +37,63 @@ export function invalidateMetaSettingsCache() {
   cache = null
 }
 
+export type CapiTestResult =
+  | { ok: true; status: number; response: unknown; usedTestCode: boolean }
+  | { ok: false; reason: 'missing_pixel' | 'missing_token' | 'network' | 'meta_error'; status?: number; error?: string; response?: unknown }
+
+/**
+ * Envia um evento "Lead" de teste (dados dummy hasheados) para a Conversions API
+ * e retorna a resposta bruta da Meta. Usado pelo admin para validar config.
+ */
+export async function testCapiConnection(): Promise<CapiTestResult> {
+  const settings = await getMetaSettings()
+  if (!settings.pixel_id) return { ok: false, reason: 'missing_pixel', error: 'Pixel ID não configurado' }
+  if (!settings.access_token) return { ok: false, reason: 'missing_token', error: 'Access Token não configurado' }
+
+  const payload: Record<string, unknown> = {
+    data: [
+      {
+        event_name: 'Lead',
+        event_time: Math.floor(Date.now() / 1000),
+        event_id: `test_${crypto.randomUUID()}`,
+        action_source: 'website',
+        event_source_url: 'https://adila-presentes.vercel.app/',
+        user_data: {
+          fn: sha256('teste'),
+          ln: sha256('admin'),
+          ph: sha256('5531999999999'),
+        },
+      },
+    ],
+  }
+  if (settings.test_event_code) {
+    payload.test_event_code = settings.test_event_code
+  }
+
+  const url = `https://graph.facebook.com/v19.0/${settings.pixel_id}/events?access_token=${encodeURIComponent(settings.access_token)}`
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return {
+        ok: false,
+        reason: 'meta_error',
+        status: res.status,
+        response: body,
+        error: typeof body?.error?.message === 'string' ? body.error.message : `HTTP ${res.status}`,
+      }
+    }
+    return { ok: true, status: res.status, response: body, usedTestCode: !!settings.test_event_code }
+  } catch (e) {
+    return { ok: false, reason: 'network', error: e instanceof Error ? e.message : 'fetch falhou' }
+  }
+}
+
 function sha256(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex')
 }

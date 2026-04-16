@@ -17,6 +17,7 @@ import {
   EyeOff,
   Save,
   RefreshCw,
+  Zap,
 } from 'lucide-react'
 
 type Lead = {
@@ -62,6 +63,11 @@ export default function AdminPage() {
   const [showToken, setShowToken] = useState(false)
   const [settingsStatus, setSettingsStatus] = useState<'idle' | 'saving' | 'ok' | 'err'>('idle')
   const [settingsMsg, setSettingsMsg] = useState('')
+
+  // Teste de conexão CAPI
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'err'>('idle')
+  const [testMsg, setTestMsg] = useState('')
+  const [testDetail, setTestDetail] = useState<string>('')
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -152,6 +158,54 @@ export default function AdminPage() {
     } catch (err) {
       setSettingsStatus('err')
       setSettingsMsg(err instanceof Error ? err.message : 'Erro inesperado')
+    }
+  }
+
+  async function handleTestCapi() {
+    setTestStatus('testing')
+    setTestMsg('')
+    setTestDetail('')
+    try {
+      const res = await fetch('/api/admin/test-capi', { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (res.status === 401) {
+        setIsLoggedIn(false)
+        return
+      }
+      if (res.ok && json?.ok) {
+        setTestStatus('ok')
+        const fbtrace = json?.response?.fbtrace_id ? ` · trace: ${json.response.fbtrace_id}` : ''
+        const received = typeof json?.response?.events_received === 'number' ? ` · events_received=${json.response.events_received}` : ''
+        setTestMsg(
+          json.usedTestCode
+            ? 'Conexão OK. Evento enviado com test_event_code — confira na aba "Testar eventos" do Gerenciador de Eventos.'
+            : 'Conexão OK. Evento de teste aceito pela Meta.'
+        )
+        setTestDetail(`HTTP ${json.status}${received}${fbtrace}`)
+      } else {
+        setTestStatus('err')
+        const reason = json?.reason as string | undefined
+        const hint =
+          reason === 'missing_pixel'
+            ? 'Salve um Meta Pixel ID antes de testar.'
+            : reason === 'missing_token'
+            ? 'Salve um Access Token antes de testar.'
+            : reason === 'meta_error'
+            ? 'Meta rejeitou o evento — token ou pixel inválido/sem permissão.'
+            : reason === 'network'
+            ? 'Falha de rede ao chamar a Graph API.'
+            : 'Erro desconhecido.'
+        setTestMsg(hint)
+        setTestDetail(
+          json?.error
+            ? `${json.error}${json?.response?.error?.code ? ` (code ${json.response.error.code})` : ''}`
+            : ''
+        )
+      }
+    } catch (e) {
+      setTestStatus('err')
+      setTestMsg('Falha ao chamar o endpoint de teste.')
+      setTestDetail(e instanceof Error ? e.message : '')
     }
   }
 
@@ -396,7 +450,7 @@ export default function AdminPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="submit"
               disabled={settingsStatus === 'saving'}
@@ -405,6 +459,16 @@ export default function AdminPage() {
               <Save size={16} />
               {settingsStatus === 'saving' ? 'Salvando...' : 'Salvar configurações'}
             </button>
+            <button
+              type="button"
+              onClick={handleTestCapi}
+              disabled={testStatus === 'testing' || !hasToken}
+              title={!hasToken ? 'Salve um Access Token antes de testar' : 'Envia um evento Lead de teste para a Meta'}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/20 text-white/80 hover:text-white hover:border-white/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Zap size={16} />
+              {testStatus === 'testing' ? 'Testando...' : 'Testar conexão CAPI'}
+            </button>
             {settingsStatus === 'ok' && (
               <span className="text-green-400 text-sm">{settingsMsg}</span>
             )}
@@ -412,6 +476,21 @@ export default function AdminPage() {
               <span className="text-red-400 text-sm">{settingsMsg}</span>
             )}
           </div>
+
+          {(testStatus === 'ok' || testStatus === 'err') && (
+            <div
+              className={`rounded-lg border p-3 text-sm ${
+                testStatus === 'ok'
+                  ? 'border-green-500/30 bg-green-500/10 text-green-300'
+                  : 'border-red-500/30 bg-red-500/10 text-red-300'
+              }`}
+            >
+              <p className="font-medium">{testMsg}</p>
+              {testDetail && (
+                <p className="mt-1 text-xs opacity-80 font-mono break-all">{testDetail}</p>
+              )}
+            </div>
+          )}
         </form>
       )}
 
