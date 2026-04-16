@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 import MetaPixel from "@/components/MetaPixel";
 
+// Força SSR a cada request para o <MetaPixel /> sempre ler o pixel_id
+// atualizado do Supabase, sem depender de rebuild/redeploy.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "LIVE DE OFERTAS | Adila Presentes + Hiper Têxtil",
   description:
