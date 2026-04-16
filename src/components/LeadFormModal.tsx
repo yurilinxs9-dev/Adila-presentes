@@ -65,10 +65,23 @@ export default function LeadFormModal({ isOpen, onClose }: LeadFormModalProps) {
     setStatus("loading");
     setErrorMsg("");
     try {
+      // event_id único compartilhado entre Pixel (browser) e CAPI (server).
+      // Permite que a Meta deduplique os dois Leads e conte como 1.
+      const event_id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `lead_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+      // Dispara o evento Lead no Pixel do browser (visível no Meta Pixel Helper).
+      // Silencioso se o ad-blocker bloquear ou o pixel não estiver carregado.
+      if (typeof window !== "undefined" && typeof window.fbq === "function") {
+        window.fbq("track", "Lead", {}, { eventID: event_id });
+      }
+
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, event_id }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

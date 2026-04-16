@@ -117,6 +117,9 @@ export type CapiLeadInput = {
   event_source_url?: string | null
   fbp?: string | null
   fbc?: string | null
+  // Se vier do client (fbq('track','Lead',{},{eventID:...})), a Meta
+  // dedupe entre Pixel (browser) e CAPI (server). Se não vier, geramos.
+  event_id?: string | null
 }
 
 /**
@@ -141,7 +144,7 @@ export async function sendCapiLead(input: CapiLeadInput): Promise<void> {
   if (input.fbp) user_data.fbp = input.fbp
   if (input.fbc) user_data.fbc = input.fbc
 
-  const event_id = crypto.randomUUID()
+  const event_id = input.event_id || crypto.randomUUID()
   const payload: Record<string, unknown> = {
     data: [
       {

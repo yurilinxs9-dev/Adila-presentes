@@ -7,7 +7,7 @@ const BRAZILIAN_PHONE_REGEX = /^(\+?55\s?)?(\(?\d{2}\)?\s?)?\d{4,5}[-\s]?\d{4}$/
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { nome_completo, celular } = body
+    const { nome_completo, celular, event_id } = body
 
     if (!nome_completo || typeof nome_completo !== 'string' || nome_completo.trim().length < 3) {
       return NextResponse.json(
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       event_source_url: referer,
       fbp,
       fbc,
+      event_id: typeof event_id === 'string' && event_id.length > 0 ? event_id : null,
     }).catch(() => {})
 
     return NextResponse.json({ success: true }, { status: 201 })
